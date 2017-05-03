@@ -1,7 +1,21 @@
 #!/usr/bin/python3
+# TODO: BookCollection
+# TODO:  - export (to xml, text)
+# TODO:  - import (from xml, text)
+# TODO:  - filter by any attr
+# TODO:  - subclass of dict => custom
+# TODO: Client
+# TODO:  - request collections as necessary and cache them
+# TODO: Server
+# TODO:  - store available books separately in a binary file
+# TODO:  - store each collection separately in a binary file
+# TODO:  - asyncio to handle requests
 
 
+import os
+import pyparsing
 import datetime
+import operator
 import collections
 
 
@@ -163,47 +177,103 @@ class UserBook(Book):
         self.tags.add(tag_to_add)
 
 
-class BookCollection(dict):
+def delegate_methods(attribute_name, method_names):
+    def decorator(cls):
+        nonlocal attribute_name
+        if attribute_name.startswith('__'):
+            attribute_name = '_{}__{}'.format(cls.__name__,
+                                              attribute_name[2:])
+            for method in method_names:
+                setattr(cls, method, eval('lambda self, *args, **kwargs: '
+                                          'self.{}.{}(*args, **kwargs)'.format(
+                                           attribute_name, method)))
+        return cls
+    return decorator
 
-    def __init__(self, book_collection):
+
+@delegate_methods('__book_collection', ('pop', '__getitem__', '__delitem__',
+                                        '__len__', '__str__', '__repr__',
+                                        '__values__', '__items__'))
+class BookCollection:
+
+    available_filters = ('isbn', 'title', 'author', 'genre', 'year_published',
+                         'edition', 'publisher')
+
+    def __init__(self, user, collection_name, book_collection):
+        self.user = user
+        self.collection_name = collection_name
+        self.__book_collection = {}
         if book_collection:
             assert all(isinstance(element, Book) for element in book_collection), (
                 'Each item of book_collection has to be Book class')
-        else:
-            book_collection = {}
-        super().__init__(book_collection)
+            self.__book_collection = book_collection
 
     def __setitem__(self, isbn, book_instance):
         assert isinstance(book_instance, Book), 'Must be Book class.'
         assert isinstance(isbn, int) and (len(str(isbn)) == 10 or len(str(isbn)) == 13), (
             'ISBN must be non-empty integer of 10 or 13 digits.')
-        super().__setitem__(isbn, book_instance)
+        self.__book_collection[isbn] = book_instance
 
     def __iter__(self):
-        for isbn in sorted(super().keys()):
+        for isbn in sorted(self.__book_collection):
             yield isbn
 
     keys = __iter__
 
     def values(self):
-        for book_instance in self.values():
+        for book_instance in self.__book_collection.values():
             yield book_instance
 
     def items(self):
-        for isbn in self.keys():
-            yield (isbn, self[isbn])
+        for isbn in self.__book_collection:
+            yield (isbn, self.__book_collection[isbn])
 
-    def setdefault(self, isbn, default=None):
-        assert isinstance(default, Book), 'Default must be a Book class.'
-        assert isinstance(isbn, int) and (len(str(isbn)) == 10 or len(str(isbn)) == 13), (
-            'ISBN must be non-empty integer of 10 or 13 digits.')
-        super().setdefault(isbn, default)
+    def filter(self, key):
+        if key not in BookCollection.available_filters:
+            raise KeyError('Valid filters: {}'.format(
+                ' '.join(BookCollection.available_filters)))
+        return sorted(self.__book_collection.values(), key=operator.attrgetter(key))
 
-    def fromkeys(iterable, value=None):
-        assert isinstance(value, Book), 'Must be a Book class.'
-        for isbn in iterable:
-            assert isinstance(isbn, int) and (len(str(isbn)) == 10 or len(str(isbn)) == 13), (
-                'ISBN must be non-empty integer of 10 or 13 digits.')
-        super().fromkeys(iterable, value)
+    def save_as_text(self):
+        filename = '{} {}.txt'.format(self.user, self.collection_name)
+        fullpath_to_save = os.path.join(os.path.dirname(__file__), filename)
+        try:
+            with open(fullpath_to_save, 'w') as fh:
+                for book in self.__book_collection.values():
+                    in_collections = ''
+                    for user in book.in_collections:
+                        in_collections += '  {}: {}'.format(
+                            user, ','.join(collection_name
+                                           for collection_name in book.in_collections[user]))
+                    fh.write('[{0.isbn}]\n'
+                             '\ttitle={0.title}\n'
+                             '\tauthor={0.author}\n'
+                             '\tgenre={0.genre}\n'
+                             '\tyear_published={0.year_published}\n'
+                             '\tedition={0.edition}\n'
+                             '\tpublisher={0.publisher}\n'
+                             '\tread={0.read}\n'
+                             '\tread_date={0.read_date}\n'
+                             '\trating={0.rating}\n'
+                             '\ttags={tags}\n'
+                             '\tin_collections={in_collections}\n'
+                             '\tNOTES>\n'
+                             '\t\t{notes}\n'
+                             '\t<NOTES\n\n'.format(book,
+                                                      tags=' '.join(book.tags),
+                                                      in_collections=in_collections.strip(),
+                                                      notes='\n\t\t'.join(('{}'.format(line)
+                                                                           for line in book.notes))))
+            return True
+        except (EnvironmentError, IOError, UnicodeError) as save_err:
+            print('Error while saving collection {}: {}'.format(self.collection_name,
+                                                                save_err))
+            return False
+
+    def load_from_text(self):
+        pass
+
+
+
 
 
