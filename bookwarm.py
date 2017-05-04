@@ -214,20 +214,25 @@ class BookCollection:
     available_filters = ('isbn', 'title', 'author', 'genre', 'year_published',
                          'edition', 'publisher')
     book_attribute_names = ('isbn', 'title', 'author', 'genre', 'no_of_pages',
-                       'year_published', 'edition', 'publisher', 'read',
-                       'read_date', 'rating', 'tags', 'in_collections', 'notes')
+                            'year_published', 'edition', 'publisher', 'read',
+                            'read_date', 'rating', 'tags', 'in_collections', 'notes')
 
     def __init__(self, user, collection_name, book_collection):
+        assert isinstance(user, str) and len(user) > 1, (
+            'Must be a non-empty string')
         self.user = user
+        assert isinstance(collection_name, str) and len(collection_name) > 1, (
+            'Must be a non-empty string')
         self.collection_name = collection_name
         self.__book_collection = {}
         if book_collection:
-            assert all(isinstance(element, Book) for element in book_collection), (
-                'Each item of book_collection has to be Book class')
+            assert isinstance(book_collection, dict), 'Must be a dict class.'
+            assert all(isinstance(element, Book) for element in book_collection.values()), (
+                'Each item of book_collection has to be Book (sub)class')
             self.__book_collection = book_collection
 
     def __setitem__(self, isbn, book_instance):
-        assert isinstance(book_instance, Book), 'Must be Book class.'
+        assert isinstance(book_instance, Book), 'Must be Book (sub)class.'
         assert isinstance(isbn, int) and (len(str(isbn)) == 10 or len(str(isbn)) == 13), (
             'ISBN must be non-empty integer of 10 or 13 digits.')
         self.__book_collection[isbn] = book_instance
@@ -294,7 +299,7 @@ class BookCollection:
         """ BNF
 
 
-            BOOK         ::=         BOOK_ISBN \s* ATTR_LIST \s* NOTES 
+            BOOK         ::=        BOOK_ISBN \s* ATTR_LIST \s* NOTES 
             NOTES        ::=        'NOTES>' NOTES_VALUES '<NOTES'
             NOTES_VALUES ::=        TEXT 
                                     | TEXT \s* NOTES_VALUES
