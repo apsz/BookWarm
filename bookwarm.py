@@ -54,6 +54,16 @@ class Book:
         return self.__author
 
     @property
+    def genre(self):
+        return self.__genre
+
+    @genre.setter
+    def genre(self, new_genre):
+        assert isinstance(new_genre, str) and len(new_genre) > 1, (
+            'Must be a non-empty string.')
+        self.__genre = new_genre
+
+    @property
     def no_of_pages(self):
         return self.__no_of_pages
 
@@ -166,17 +176,19 @@ class UserBook(Book):
         assert isinstance(new_tags, set), 'Must be a set class.'
         self.__tags = new_tags
 
-    def add_note(self, note):
-        assert isinstance(note, str), 'Must be a string.'
-        self.notes.append(note)
+    def add_note(self, new_note):
+        assert isinstance(new_note, str) and len(new_note) > 1, (
+            'Must be a non-empty string.')
+        self.notes.append(new_note)
 
     def add_collection_name(self, user, user_collection_name):
-        assert isinstance(user_collection_name, str) and isinstance(user, str), (
-            'Must be a string.')
+        assert (isinstance(user_collection_name, str) and isinstance(user, str)
+            and len(user) > 1) and len(user_collection_name) > 1, ('Must be a non-empty string.')
         self.in_collections[user].append(user_collection_name)
 
     def add_tag(self, tag_to_add):
-        assert isinstance(tag_to_add, str), 'Must be a string.'
+        assert isinstance(tag_to_add, str) and len(tag_to_add) > 1, (
+            'Must be a non-empty string.')
         self.tags.add(tag_to_add)
 
 
