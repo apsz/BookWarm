@@ -1,11 +1,26 @@
 #!/usr/bin/python3
+# TODO: save/load tests
 
-
+import sys
+import io
 import unittest
 import collections
 import datetime
 import unittest.mock
 from bookwarm import Book, UserBook, BookCollection
+
+
+class ReplaceStandardOutput:
+
+    def __init__(self):
+        self._stdout_backup = sys.stdout
+
+    def __enter__(self):
+        sys.stdout = io.StringIO()
+        return sys.stdout
+
+    def __exit__(self, *ignore):
+        sys.stdout = self._stdout_backup
 
 
 class TestBook(unittest.TestCase):
@@ -266,6 +281,155 @@ class TestBook(unittest.TestCase):
         book = UserBook(**self.user_book_kwargs)
         with self.assertRaises(AssertionError):
             book.add_collection_name('new user', 7777)
+
+
+class TestBookCollection(unittest.TestCase):
+
+    def setUp(self):
+        self.test_book1 = UserBook(**dict(isbn=1234567890, title='title',
+                                   author='author1', genre='genre',
+                                   no_of_pages=50, year_published=2015))
+        self.test_book2 = UserBook(**dict(isbn=1234567892, title='title1',
+                                   author='author', genre='benre',
+                                   no_of_pages=150, year_published=2017))
+        self.valid_bookcoll_kwargs = dict(user='valid user',
+                                          collection_name='valid coll name',
+                                          book_collection=None)
+
+    def tearDown(self):
+        del self.test_book1, self.test_book2, self.valid_bookcoll_kwargs
+
+    def test01_bookcoll_init_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertEqual(book_collection.user, self.valid_bookcoll_kwargs['user'])
+
+    def test02_bookcoll_init_missing_arg_fail(self):
+        del self.valid_bookcoll_kwargs['user']
+        with self.assertRaises(TypeError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test03_bookcoll_user_empty_fail(self):
+        self.valid_bookcoll_kwargs['user'] = ''
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test04_bookcoll_user_too_short_fail(self):
+        self.valid_bookcoll_kwargs['user'] = 'o'
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test05_bookcoll_collection_name_empty_fail(self):
+        self.valid_bookcoll_kwargs['collection_name'] = ''
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test06_bookcoll_collection_name_too_short_fail(self):
+        self.valid_bookcoll_kwargs['collection_name'] = 'o'
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test07_bookcoll_book_collection_non_empty_success(self):
+        books_dict = dict()
+        books_dict[self.test_book1.isbn] = self.test_book1
+        books_dict[self.test_book2.isbn] = self.test_book2
+        self.valid_bookcoll_kwargs['book_collection'] = books_dict
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertEqual(book_collection[self.test_book1.isbn], self.test_book1)
+
+    def test08_bookcoll_book_collection_wrong_type_fail(self):
+        books_list = [self.test_book1, self.test_book2]
+        self.valid_bookcoll_kwargs['book_collection'] = books_list
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test08_bookcoll_book_collection_wrong_element_type_fail(self):
+        books_dict = dict()
+        books_dict[self.test_book1.isbn] = self.test_book1
+        books_dict[self.test_book2.isbn] = []
+        self.valid_bookcoll_kwargs['book_collection'] = books_dict
+        with self.assertRaises(AssertionError):
+            BookCollection(**self.valid_bookcoll_kwargs)
+
+    def test09_bookcoll_setitem_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book2.isbn] = self.test_book2
+        self.assertTrue(book_collection[self.test_book2.isbn], self.test_book2)
+
+    def test09_bookcoll_setitem_isbn_13_digits_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[1234567890123] = self.test_book2
+        self.assertTrue(book_collection[1234567890123], self.test_book2)
+
+    def test10_bookcoll_setitem_invalid_key_type_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        with self.assertRaises(AssertionError):
+            book_collection['1234567890'] = self.test_book2
+
+    def test11_bookcoll_setitem_invalid_value_type_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        with self.assertRaises(AssertionError):
+            book_collection[self.test_book2.isbn] = []
+
+    def test12_bookcoll_delitem_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book2.isbn] = self.test_book2
+        self.assertEqual(book_collection[self.test_book2.isbn], self.test_book2)
+        del book_collection[self.test_book2.isbn]
+        self.assertFalse(self.test_book2.isbn in book_collection)
+
+    def test13_bookcoll_delitem_keyerror_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        with self.assertRaises(KeyError):
+            del book_collection[self.test_book2.isbn]
+
+    def test14_bookcoll_getitem_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book2.isbn] = self.test_book2
+        self.assertEqual(book_collection[self.test_book2.isbn], self.test_book2)
+
+    def test15_bookcoll_getitem_keyerror_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        with self.assertRaises(KeyError):
+            item = book_collection[self.test_book2.isbn]
+
+    def test16_bookcoll_values_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        book_collection[self.test_book2.isbn] = self.test_book2
+        self.assertEqual(tuple(book_collection.values()), (self.test_book1, self.test_book2))
+
+    def test17_bookcoll_items_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertEqual(list(book_collection.items()),
+                         [(self.test_book1.isbn, self.test_book1)])
+
+    def test18_bookcoll_pop_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertEqual(book_collection.pop(self.test_book1.isbn), self.test_book1)
+
+    def test19_bookcoll_pop_not_found_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertFalse(book_collection.pop(self.test_book1.isbn, None), self.test_book1)
+
+    def test20_bookcoll_len_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertEqual(len(book_collection), 1)
+
+    def test21_filter_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        book_collection[self.test_book2.isbn] = self.test_book2
+        self.assertEqual(book_collection.filter(key='isbn')[0], self.test_book1)
+        self.assertEqual(book_collection.filter(key='genre')[0], self.test_book2)
+
+    def test22_filter_atrr_not_found_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        with self.assertRaises(KeyError):
+            book_collection.filter(key='invalid')
 
 
 if __name__ == '__main__':
