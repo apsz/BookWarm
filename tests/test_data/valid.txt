@@ -1,0 +1,34 @@
+[1234567890]
+	title=title
+	author=author
+	genre=fiction1
+	no_of_pages=150
+	year_published=2017
+	edition=1
+	publisher=
+	read=False
+	read_date=0001-01-01
+	rating=0
+	tags=
+	in_collections=
+	NOTES>
+		haha
+		whoot
+	<NOTES
+
+[1234567896]
+	title=title2
+	author=author1
+	genre=fiction
+	no_of_pages=151
+	year_published=2016
+	edition=1
+	publisher=
+	read=False
+	read_date=0001-01-01
+	rating=0
+	tags=
+	in_collections=w: qweq  q: hallo,qweqwe
+	NOTES>
+
+	<NOTES

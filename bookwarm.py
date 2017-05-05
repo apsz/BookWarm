@@ -17,7 +17,6 @@ import collections
 import datetime
 import xml.etree.ElementTree
 import xml.parsers.expat
-import xml.dom.minidom
 from pyparsing import (Suppress, Word, OneOrMore, ParseException, Regex,
                        restOfLine, ZeroOrMore, alphas, nums)
 
@@ -397,9 +396,9 @@ class BookCollection:
             in_collections_str = ''
             for user in book.in_collections:
                 in_collections_str += '  {}: {}'.format(
-                    user, ','.join(collection_name
+                    user, ','.join(collection_name.strip()
                                    for collection_name in book.in_collections[user]))
-            return in_collections.strip()
+            return in_collections
 
         filename = '{} {}.xml'.format(self.user, self.collection_name)
         fullpath_to_save = os.path.join(os.path.dirname(__file__), filename)
@@ -407,7 +406,7 @@ class BookCollection:
         root = xml.etree.ElementTree.Element('books')
         for book in self.__book_collection.values():
             main_book = xml.etree.ElementTree.Element('book')
-            for attr in BookCollection.book_attr_names[:-3]:
+            for attr in BookCollection.book_attribute_names[:-3]:
                 sub_element = xml.etree.ElementTree.SubElement(main_book, attr)
                 sub_element.text = str(getattr(book, attr))
             tags = xml.etree.ElementTree.SubElement(main_book, 'tags')

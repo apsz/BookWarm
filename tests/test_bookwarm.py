@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 # TODO: save/load tests
 
+import os
 import sys
 import io
 import unittest
 import collections
 import datetime
 import unittest.mock
+import xml
 from bookwarm import Book, UserBook, BookCollection
 
 
@@ -285,6 +287,19 @@ class TestBook(unittest.TestCase):
 
 class TestBookCollection(unittest.TestCase):
 
+
+    @classmethod
+    def setUpClass(cls):
+        valid_txt_path = os.path.join(os.path.dirname(__file__), 'test_data/valid.txt')
+        valid_xml_path = os.path.join(os.path.dirname(__file__), 'test_data/valid.xml')
+        with open(valid_txt_path) as txt_fh:
+            cls.valid_txt = txt_fh.read()
+        with open(valid_xml_path) as xml_fh:
+            cls.valid_xml = xml_fh.read()
+        cls.invalid_txt = cls.valid_txt.split('[')[1]
+        cls.invalid_xml = cls.valid_xml.split('</book>')[1]
+
+
     def setUp(self):
         self.test_book1 = UserBook(**dict(isbn=1234567890, title='title',
                                    author='author1', genre='genre',
@@ -425,11 +440,75 @@ class TestBookCollection(unittest.TestCase):
         self.assertEqual(book_collection.filter(key='isbn')[0], self.test_book1)
         self.assertEqual(book_collection.filter(key='genre')[0], self.test_book2)
 
-    def test22_filter_atrr_not_found_fail(self):
+    def test22_filter_attr_not_found_fail(self):
         book_collection = BookCollection(**self.valid_bookcoll_kwargs)
         book_collection[self.test_book1.isbn] = self.test_book1
         with self.assertRaises(KeyError):
             book_collection.filter(key='invalid')
+
+    def test23_parse_text_success(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertNotEqual(book_collection._parse_text(self.valid_txt), [])
+
+    def test24_parse_text_parse_error_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertEqual(book_collection._parse_text(self.invalid_txt), [])
+
+    def test25_parse_text_empty_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertEqual(book_collection._parse_text(''), [])
+
+    @unittest.mock.patch('bookwarm.open', return_value=io.StringIO(''))
+    def test26_save_to_text_success(self, io_file):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertTrue(book_collection.save_to_text())
+
+    @unittest.mock.patch('bookwarm.os.path.join', return_value='\\n')
+    def test27_save_to_text_fail(self, *ignore):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertFalse(book_collection.save_to_text())
+
+    @unittest.mock.patch('bookwarm.open', return_value=io.StringIO(''))
+    @unittest.mock.patch('bookwarm.BookCollection._parse_text',
+                         return_value={'key': 'value'})
+    def test28_load_from_text_success(self, *ignore):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertTrue(book_collection.load_from_text())
+
+    def test29_load_from_text_file_not_found_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertFalse(book_collection.load_from_text())
+
+    @unittest.mock.patch('bookwarm.open', return_value=io.StringIO(''))
+    @unittest.mock.patch('bookwarm.BookCollection._parse_text',
+                         return_value={})
+    def test29_load_from_text_file_empty_fail(self, *ignore):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertFalse(book_collection.load_from_text())
+
+    @unittest.mock.patch('bookwarm.open', return_value=io.StringIO(''))
+    @unittest.mock.patch('bookwarm.xml.etree.ElementTree.ElementTree.write',
+                         return_value=True)
+    def test30_save_to_xml_success(self, *ignore):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertTrue(book_collection.save_to_xml())
+
+    @unittest.mock.patch('bookwarm.os.path.join', return_value='\\n')
+    def test31_save_to_xml_fail(self, *ignore):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertFalse(book_collection.save_to_xml())
+
+    @unittest.mock.patch('bookwarm.os.path.join', return_value='test_data\\valid.xml')
+    def test32_load_from_xml_success(self, data):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        book_collection[self.test_book1.isbn] = self.test_book1
+        self.assertTrue(book_collection.load_from_xml())
+
+    def test33_load_from_xml_no_file_fail(self):
+        book_collection = BookCollection(**self.valid_bookcoll_kwargs)
+        self.assertFalse(book_collection.load_from_xml())
 
 
 if __name__ == '__main__':
