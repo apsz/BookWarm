@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# TODO: save/load tests
+
 
 import os
 import sys
@@ -10,19 +10,6 @@ import datetime
 import unittest.mock
 import xml
 from bookwarm import Book, UserBook, BookCollection
-
-
-class ReplaceStandardOutput:
-
-    def __init__(self):
-        self._stdout_backup = sys.stdout
-
-    def __enter__(self):
-        sys.stdout = io.StringIO()
-        return sys.stdout
-
-    def __exit__(self, *ignore):
-        sys.stdout = self._stdout_backup
 
 
 class TestBook(unittest.TestCase):
