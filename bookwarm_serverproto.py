@@ -35,7 +35,7 @@ class ServerProtocol(asyncio.Protocol):
             decoded_data = raw_data.decode('utf-8')
             if self._user is None:
                 self._setup_new_user(new_user=decoded_data)
-                self._send_formatted_reply(status='OK', command='main_menu', reply='None')
+                self._send_formatted_reply(status='OK', command='main_menu', reply='')
             else:
                 self._handle_client_data(decoded_data)
         except UnicodeDecodeError as decode_err:
@@ -46,14 +46,14 @@ class ServerProtocol(asyncio.Protocol):
         self._quit()
 
     # main menu
-    def _show_books(self, client_data, next_menu, status='RE', reply='Empty'):
+    def _show_books(self, client_data, next_menu='empty_books_menu', status='RE', reply='Empty'):
         if self._bookwarm_server.all_books:
             reply = '\n'.join([book.isbn for book in self._bookwarm_server.all_books])
             next_menu = 'books_menu'
         self._send_formatted_reply(status=status, command=next_menu, reply=reply)
 
 
-    def _show_user_collections(self, client_data, next_menu,
+    def _show_user_collections(self, client_data, next_menu='empty_collections_menu',
                                status='RE', reply='You have no collections'):
         if self._user_collections:
             reply = '\n'.join([collection.collection_name
@@ -66,7 +66,7 @@ class ServerProtocol(asyncio.Protocol):
         self._transport.close()
 
     # collection handling
-    def _add_collection(self, client_data, next_menu, status='RE',
+    def _add_collection(self, client_data, next_menu='collections_menu', status='RE',
                         reply='Collection created.'):
         self._bookwarm_server.add_new_collection(user=self._user,
                                                  collection_name=client_data)
@@ -99,10 +99,9 @@ class ServerProtocol(asyncio.Protocol):
 
     # supportive methods
     def _handle_client_data(self, decoded_data):
-        (command, client_data,
-         options_menu, next_client_menu) = decoded_data.split('  ')
+        command, client_data, options_menu = decoded_data.split('  ')
 
-        self._commands[options_menu][command](client_data, next_client_menu)
+        self._commands[options_menu][command](client_data)
 
     def _load_user_collections(self):
         self._user_collections = self._bookwarm_server.get_user_collections(self._user)
