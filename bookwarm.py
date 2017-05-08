@@ -1,13 +1,9 @@
 #!/usr/bin/python3
-# TODO: BookCollection
-# TODO: tests
-# TODO: structure
 # TODO: Client
 # TODO:  - request collections as necessary and cache them
 # TODO: Server
 # TODO:  - store available books separately in a binary file
 # TODO:  - store each collection separately in a binary file
-# TODO:  - asyncio to handle requests
 
 
 import os
@@ -17,11 +13,61 @@ import collections
 import datetime
 import xml.etree.ElementTree
 import xml.parsers.expat
+
 from pyparsing import (Suppress, Word, OneOrMore, ParseException, Regex,
                        restOfLine, ZeroOrMore, alphas, nums)
+from sqlalchemy import (Column, ForeignKey, Integer, String, Boolean,
+                        Date, PickleType, create_engine)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 
-class Book:
+if sys.platform.startswith('win'):
+    DB_PATH_PREFIX = 'sqlite:///'
+else:
+    DB_PATH_PREFIX = 'sqlite:////'
+DB_BASE = declarative_base()
+
+
+def setup_database(path_to_db_file):
+    path_to_db_file = DB_PATH_PREFIX + path_to_db_file
+    engine = create_engine(path_to_db_file)
+    DB_BASE.metadata.create_all(engine)
+
+
+class SQLSession:
+
+    def __init__(self, database_file):
+        self._database_file = DB_PATH_PREFIX + database_file
+
+    def __enter__(self):
+        engine = create_engine(self._database_file)
+        DB_BASE.metadata.bind = engine
+        DBSession = sessionmaker(bind=engine)
+        self.session = DBSession()
+        return self.session
+
+    def __exit__(self, *ignore):
+        self.session.close()
+
+
+class Book(DB_BASE):
+
+    __tablename__ = 'book'
+
+    id = Column(Integer, primary_key=True)
+    __isbn = Column(Integer, nullable=False)
+    __title = Column(String(200), nullable=False)
+    __author = Column(String(200), nullable=False)
+    __genre = Column(String(200))
+    __no_of_pages = Column(Integer)
+    __edition = Column(Integer)
+    __year_published = Column(Integer)
+    __publisher = Column(String(200))
+    type = Column(String(50))
+
+    __mapper_args__ = {'polymorphic_identity': 'book',
+                       'polymorphic_on': type}
 
     def __init__(self, isbn, title, author, genre, no_of_pages,
                  year_published, edition=1, publisher=''):
@@ -103,6 +149,18 @@ class Book:
 
 
 class UserBook(Book):
+
+    __tablename__ = 'userbook'
+
+    id = Column(Integer, ForeignKey('book.id'), primary_key=True)
+    __read = Column(Boolean)
+    __read_date = Column(Date)
+    __rating = Column(Integer)
+    __in_collections = Column(PickleType)
+    __notes = Column(PickleType)
+    __tags = Column(PickleType)
+
+    __mapper_args__ = {'polymorphic_identity': 'userbook'}
 
     def __init__(self, isbn, title, author, genre, no_of_pages,
                  year_published, edition=1, publisher='',
@@ -208,7 +266,14 @@ def delegate_methods(attribute_name, method_names):
 @delegate_methods('__book_collection', ('pop', '__getitem__', '__delitem__',
                                         '__len__', '__str__', '__repr__',
                                         '__values__', '__items__'))
-class BookCollection:
+class BookCollection(DB_BASE):
+
+    __tablename__ = 'book_collection'
+
+    id = Column(Integer, primary_key=True)
+    user = Column(String, nullable=False)
+    collection_name = Column(String, nullable=False)
+    __book_collection = Column(PickleType)
 
     available_filters = ('isbn', 'title', 'author', 'genre', 'year_published',
                          'edition', 'publisher')
@@ -472,10 +537,3 @@ class BookCollection:
             self.__book_collection.clear()
             self.__book_collection.update(new_books)
             return True
-
-
-
-
-
-
-
