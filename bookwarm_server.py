@@ -54,7 +54,7 @@ class BookWarmServer:
     def find_book_by_isbn(self, isbn):
         with bookwarm.SQLSession(self._database_path) as session:
             return session.query(bookwarm.Book).filter(
-                bookwarm.Book.isbn == isbn).one()
+                bookwarm.Book.isbn == isbn).all()
 
     def add_new_book(self, isbn):
         if not self.find_book_by_isbn(isbn):

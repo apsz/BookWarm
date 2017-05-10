@@ -3,6 +3,7 @@
 
 import asyncio
 import getpass
+import datetime
 
 import CmdUtils
 
@@ -36,26 +37,23 @@ class BookWarmClient(asyncio.Protocol):
         asyncio.get_event_loop().stop()
 
     def _handle_server_data(self, status, command, reply):
-        if status not in {'OK', 'RE'}:
-            print(reply)
-            self.quit()
+        if status == 'FUNC':
+            self.__getattribute__(command)(reply)
+        else:
+            if status == 'RE':
+                print(reply)
 
-        if status == 'RE':
-            print(reply)
-
-        self._menus[command]()
+            self._menus[command]()
 
     def _main_menu_options(self):
         user_choice = CmdUtils.get_str('(A)ll books  (M)y Collections  (Q)uit',
                                        input_type='option', valid='amq')
-        self._send_formatted(command=user_choice, client_data='', options_menu='main_menu')
+        self._send_formatted(command=user_choice, client_data='None', options_menu='main_menu')
 
     def _books_empty_options(self):
         user_choice = CmdUtils.get_str('(A)dd Book  (B)ack', input_type='option', valid='ab')
         if user_choice == 'a':
-            new_book_data = self._get_book_data()
-            self._send_formatted(command=user_choice, client_data=new_book_data,
-                                 options_menu='books_menu')
+            self._find_isbn(fallback_menu='empty_books_menu')
         else:
             self._main_menu_options()
 
@@ -83,13 +81,74 @@ class BookWarmClient(asyncio.Protocol):
         self._send_formatted(command=user_choice, client_data='', options_menu='collections_menu')
 
     def _get_isbn(self):
-        isbn = CmdUtils.get_int('ISBN (10 or 13 plaint digits)', input_type='isbn')
-        if not (isinstance(isbn, int) and (len(str(isbn)) == 10 or len(str(isbn)) == 13)):
+        try:
+            isbn = int(CmdUtils.get_str('ISBN (10 or 13 plain digits)', input_type='isbn', min_len=10, max_len=13))
+            if (len(str(isbn)) == 10 or len(str(isbn)) == 13):
+                return isbn
+            raise ValueError()
+        except (ValueError, TypeError):
             raise ValueError('ISBN must be non-empty integer of 10 or 13 digits.')
-        return isbn
 
-    def _get_book_data(self):
-        raise NotImplementedError()
+    def _find_isbn(self, fallback_menu='empty_books_menu'):
+        try:
+            new_isbn = self._get_isbn()
+        except ValueError as isbn_err:
+            print(isbn_err)
+            if fallback_menu == 'empty_books_menu':
+                self._books_empty_options()
+            else:
+                self._books_menu_options()
+        else:
+            isbn_menu = '{} {}'.format(new_isbn, '_add_new_book')
+            self._send_formatted(command='f', client_data=isbn_menu,
+                                 options_menu='books_menu')
+
+    def _gather_book_data(self):
+        title = CmdUtils.get_str('Title (or "c" to cancel)', input_type='string',
+                                 default='c', min_len=2)
+        if title == 'c':
+            return
+        author = CmdUtils.get_str('Author (or "c" to cancel)', input_type='string',
+                                  default='c', min_len=2)
+        if author == 'c':
+            return
+        genre = CmdUtils.get_str('Genre (or "c" to cancel)', input_type='string',
+                                 default='c', min_len=1)
+        if genre == 'c':
+            return
+        no_of_pages = CmdUtils.get_int('Number of pages (or "c" to cancel)', input_type='integer',
+                                       default='c', min_val=1, max_val=10000)
+        if no_of_pages == 'c':
+            return
+        edition = CmdUtils.get_int('Edition (or "c" to cancel)', input_type='integer',
+                                   default='c', min_val=1)
+        if edition == 'c':
+            return
+        year_published = CmdUtils.get_int('Year published (or "c" to cancel)',
+                                          input_type='integer', default='c',
+                                          max_val=datetime.date.today().year)
+        if year_published == 'c':
+            return
+        publisher = CmdUtils.get_str('(Optional) Publisher (or "c" to cancel)',
+                                     input_type='string', default='')
+        if publisher == 'c':
+            return
+        return ('{title} {author} {genre} {no_of_pages} {edition} '
+                '{year_published} {publisher}'.format(**locals()))
+
+    def _add_new_book(self, isbn):
+        if isbn:
+            print('Cannot continue: ISBN already in DB.')
+            self._main_menu_options()
+        else:
+            new_book_data = self._gather_book_data()
+            if not new_book_data:
+                print('Canceled. Reverting to menu.')
+                self._main_menu_options()
+            else:
+                new_book_data = '{} {}'.format(isbn, new_book_data)
+                self._send_formatted(command='a', client_data=new_book_data,
+                                     options_menu='books_menu')
 
     def quit(self, *ignore):
         asyncio.get_event_loop().stop()

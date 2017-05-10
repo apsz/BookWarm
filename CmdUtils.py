@@ -11,6 +11,8 @@ def get_str(msg, input_type='string', valid=None, default=None,
     msg += ' [{}]: '.format(default) if default else ': '
     while True:
         user_input = get_input(msg)
+        if user_input == 'c':
+            return user_input
         if not user_input:
             if default:
                 return default
@@ -36,6 +38,8 @@ def get_int(msg, input_type='integer', default=None,
     while True:
         try:
             user_input = get_input(msg)
+            if user_input == 'c':
+                return user_input
             if not user_input and default:
                 return default
             user_input = int(user_input)
