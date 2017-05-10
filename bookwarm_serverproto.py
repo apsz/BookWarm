@@ -20,6 +20,7 @@ class ServerProtocol(asyncio.Protocol):
                                                 v=self._view_book,
                                                 e=self._edit_book,
                                                 d=self._delete_book,
+                                                f=self._find_book,
                                                 b=self._back),
                               collections_menu = dict(a=self._add_collection,
                                                       v=self._view_collection,
@@ -94,13 +95,18 @@ class ServerProtocol(asyncio.Protocol):
     def _delete_book(self, *args):
         raise NotImplementedError()
 
+    def _find_book(self, isbn_menu):
+        isbn_to_find, client_func_to_invoke = isbn_menu.split()
+        found = self._bookwarm_server.find_book_by_isbn(isbn_to_find)
+        self._send_formatted_reply(status='FUNC', command=client_func_to_invoke,
+                                   reply=found[0] if found else '')
+
     def _back(self, *args):
         pass
 
     # supportive methods
     def _handle_client_data(self, decoded_data):
         command, client_data, options_menu = decoded_data.split('  ')
-
         self._commands[options_menu][command](client_data)
 
     def _load_user_collections(self):
