@@ -49,7 +49,7 @@ class ServerProtocol(asyncio.Protocol):
     # main menu
     def _show_books(self, client_data, next_menu='empty_books_menu', status='RE', reply='Empty'):
         if self._bookwarm_server.all_books:
-            reply = '\n'.join([book.isbn for book in self._bookwarm_server.all_books])
+            reply = '\n'.join(['{}'.format(book.isbn) for book in self._bookwarm_server.all_books])
             next_menu = 'books_menu'
         self._send_formatted_reply(status=status, command=next_menu, reply=reply)
 
@@ -64,6 +64,7 @@ class ServerProtocol(asyncio.Protocol):
 
     def _quit(self, *ignore):
         self._bookwarm_server.remove_user(self._user)
+        self._user = None
         self._transport.close()
 
     # collection handling
@@ -83,30 +84,49 @@ class ServerProtocol(asyncio.Protocol):
         raise NotImplementedError()
 
     # book handling
-    def _add_book(self, *args):
-        raise NotImplementedError()
+    def _add_book(self, book_data):
+        add_success, reply = self._bookwarm_server.add_new_book(book_data)
+        if not add_success:
+            self._send_formatted_reply(status='RE', command='main_menu',
+                                       reply='Server Error: {}'.format(reply))
+        else:
+            self._send_formatted_reply(status='RE', command='books_menu',
+                                       reply='Book added.')
 
-    def _view_book(self, *args):
-        raise NotImplementedError()
+    def _view_book(self, isbn):
+        found = self._bookwarm_server.find_book_by_isbn(isbn)
+        if not found:
+            self._send_formatted_reply(status='RE', command='main_menu',
+                                       reply='ISBN not found.')
+        else:
+            reply = '{0.isbn} {0.title}\n'.format(found)
+            self._send_formatted_reply(status='RE', command='main_menu',
+                                       reply=reply)
 
     def _edit_book(self, *args):
         raise NotImplementedError()
 
-    def _delete_book(self, *args):
-        raise NotImplementedError()
+    def _delete_book(self, isbn):
+        del_success, reply = self._bookwarm_server.delete_book(isbn)
+        if not del_success:
+            self._send_formatted_reply(status='RE', command='main_menu',
+                                       reply='Server Error: {}'.format(reply))
+        else:
+            self._send_formatted_reply(status='RE', command='books_menu',
+                                       reply='Book removed.')
 
     def _find_book(self, isbn_menu):
         isbn_to_find, client_func_to_invoke = isbn_menu.split()
         found = self._bookwarm_server.find_book_by_isbn(isbn_to_find)
-        self._send_formatted_reply(status='FUNC', command=client_func_to_invoke,
-                                   reply=found[0] if found else '')
+        reply = 'DUPLICATE {}'.format(isbn_to_find) if found else 'OK {}'.format(isbn_to_find)
+        self._send_formatted_reply(status='FUNC', command=client_func_to_invoke, reply=reply)
 
     def _back(self, *args):
         pass
 
     # supportive methods
     def _handle_client_data(self, decoded_data):
-        command, client_data, options_menu = decoded_data.split('  ')
+        command, client_data, options_menu = map(str.strip, decoded_data.split('  '))
         self._commands[options_menu][command](client_data)
 
     def _load_user_collections(self):
@@ -115,8 +135,9 @@ class ServerProtocol(asyncio.Protocol):
     def _setup_new_user(self, new_user):
         self._user = new_user
         if not self._bookwarm_server.add_user(self._user):
-            self._write('One connection per user allowed.\n'
-                        'This client will now exit.')
+            self._send_formatted_reply(status='FUNC', command='quit',
+                                       reply='One connection per user allowed.\n'
+                                              'This client will now exit.')
             self._quit()
         self._load_user_collections()
 

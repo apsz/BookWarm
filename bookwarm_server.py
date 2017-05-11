@@ -19,7 +19,8 @@ class BookWarmServer:
         self._loop = loop
         self._active_users = set()
         self._database_path = self._setup_database()
-        self.__all_books = self._load_all_available_books()
+        self.__all_books = []
+        self._load_all_available_books()
 
     @property
     def all_books(self):
@@ -39,26 +40,54 @@ class BookWarmServer:
         return True
 
     def remove_user(self, user):
-        self._active_users.remove(user)
+        self._active_users.discard(user)
 
     def get_user_collections(self, user):
         with bookwarm.SQLSession(self._database_path) as session:
             return session.query(bookwarm.BookCollection).filter(
-                bookwarm.BookCollection.user == user).all()
+                bookwarm.BookCollection.user == user)
 
     def get_collection_by_name(self, collection_name):
         with bookwarm.SQLSession(self._database_path) as session:
             return session.query(bookwarm.BookCollection).filter(
-                bookwarm.BookCollection.collection_name == collection_name).one()
+                bookwarm.BookCollection.collection_name == collection_name)
 
     def find_book_by_isbn(self, isbn):
         with bookwarm.SQLSession(self._database_path) as session:
-            return session.query(bookwarm.Book).filter(
-                bookwarm.Book.isbn == isbn).all()
+            books = session.query(bookwarm.Book).all()
+            for book in books:
+                if book.isbn == int(isbn):
+                    return book
+        return False
 
-    def add_new_book(self, isbn):
-        if not self.find_book_by_isbn(isbn):
-            pass
+    def add_new_book(self, book_data):
+        with bookwarm.SQLSession(self._database_path) as session:
+            try:
+
+                prepared_data = [int(value) if value.isdigit()
+                                            else value for value in book_data.split()]
+                new_book = bookwarm.Book(*prepared_data)
+                session.add(new_book)
+                session.commit()
+                self._load_all_available_books()
+                return (True, '')
+            except Exception as add_book_err:
+                session.rollback()
+                return (False, add_book_err)
+
+    def delete_book(self, isbn):
+        with bookwarm.SQLSession(self._database_path) as session:
+            try:
+                books = session.query(bookwarm.Book).all()
+                for book in books:
+                    if book.isbn == int(isbn):
+                        session.delete(book)
+                        session.commit()
+                self._load_all_available_books()
+                return (True, '')
+            except Exception as del_book_err:
+                session.rollback()
+                return (False, del_book_err)
 
     def add_new_collection(self, user, collection_name):
         new_collection = bookwarm.BookCollection(user=user,
@@ -81,7 +110,7 @@ class BookWarmServer:
 
     def _load_all_available_books(self):
         with bookwarm.SQLSession(self._database_path) as session:
-            self.__all_books = session.query(bookwarm.UserBook).all()
+            self.__all_books = session.query(bookwarm.Book).all()
 
 
 def get_args():
