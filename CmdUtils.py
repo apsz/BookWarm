@@ -14,7 +14,7 @@ def get_str(msg, input_type='string', valid=None, default=None,
         if user_input == 'c':
             return user_input
         if not user_input:
-            if default:
+            if default is not None:
                 return default
             print('{} cannot be empty.'.format(input_type))
             continue
@@ -40,7 +40,7 @@ def get_int(msg, input_type='integer', default=None,
             user_input = get_input(msg)
             if user_input == 'c':
                 return user_input
-            if not user_input and default:
+            if not user_input and default is not None:
                 return default
             user_input = int(user_input)
             if ((not min_val or min_val <= user_input) and

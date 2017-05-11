@@ -62,6 +62,12 @@ class BookWarmClient(asyncio.Protocol):
                                        input_type='option', valid='avedb')
         if user_choice == 'b':
             self._main_menu_options()
+        elif user_choice == 'a':
+            self._find_isbn(fallback_menu='books_menu')
+        elif user_choice == 'd':
+            self._delete_book()
+        elif user_choice == 'v':
+            self._view_book()
         else:
             self._send_formatted(command=user_choice, client_data='',
                                  options_menu='collections_menu')
@@ -82,8 +88,8 @@ class BookWarmClient(asyncio.Protocol):
 
     def _get_isbn(self):
         try:
-            isbn = int(CmdUtils.get_str('ISBN (10 or 13 plain digits)', input_type='isbn', min_len=10, max_len=13))
-            if (len(str(isbn)) == 10 or len(str(isbn)) == 13):
+            isbn = CmdUtils.get_str('ISBN (10 or 13 plain digits)', input_type='isbn', min_len=10, max_len=13)
+            if (len(isbn) == 10 or len(isbn) == 13) and isbn.isdigit():
                 return isbn
             raise ValueError()
         except (ValueError, TypeError):
@@ -130,14 +136,15 @@ class BookWarmClient(asyncio.Protocol):
         if year_published == 'c':
             return
         publisher = CmdUtils.get_str('(Optional) Publisher (or "c" to cancel)',
-                                     input_type='string', default='')
+                                     input_type='string', default='', min_len=0)
         if publisher == 'c':
             return
         return ('{title} {author} {genre} {no_of_pages} {edition} '
                 '{year_published} {publisher}'.format(**locals()))
 
-    def _add_new_book(self, isbn):
-        if isbn:
+    def _add_new_book(self, status_isbn):
+        status, isbn = status_isbn.split()
+        if status == 'DUPLICATE':
             print('Cannot continue: ISBN already in DB.')
             self._main_menu_options()
         else:
@@ -150,7 +157,28 @@ class BookWarmClient(asyncio.Protocol):
                 self._send_formatted(command='a', client_data=new_book_data,
                                      options_menu='books_menu')
 
-    def quit(self, *ignore):
+    def _delete_book(self):
+        try:
+            isbn_to_delete = self._get_isbn()
+        except ValueError as isbn_err:
+            print(isbn_err)
+            self._main_menu_options()
+        else:
+            self._send_formatted(command='d', client_data=isbn_to_delete,
+                                 options_menu='books_menu')
+
+    def _view_book(self):
+        try:
+            isbn_to_find = self._get_isbn()
+        except ValueError as isbn_err:
+            print(isbn_err)
+            self._main_menu_options()
+        else:
+            self._send_formatted(command='v', client_data=isbn_to_find,
+                                 options_menu='books_menu')
+
+    def quit(self, msg=None):
+        print(msg)
         asyncio.get_event_loop().stop()
 
     def _write(self, text):
