@@ -60,6 +60,18 @@ class BookWarmServer:
                     return book
         return False
 
+    def retrieve_book_details(self, isbn):
+        book_attrs = ('title', 'author', 'genre', 'no_of_pages',
+                      'year_published', 'edition', 'publisher')
+
+        with bookwarm.SQLSession(self._database_path) as session:
+            books = session.query(bookwarm.Book).all()
+            for book in books:
+                if book.isbn == int(isbn):
+                    book_data = '\n'.join([str(book.__getattribute__(attr)) for attr in book_attrs])
+                    return book_data
+        return False
+
     def add_new_book(self, book_data):
         with bookwarm.SQLSession(self._database_path) as session:
             try:
@@ -88,6 +100,23 @@ class BookWarmServer:
             except Exception as del_book_err:
                 session.rollback()
                 return (False, del_book_err)
+
+    def update_book(self, isbn, edition, publisher):
+        with bookwarm.SQLSession(self._database_path) as session:
+            try:
+                books = session.query(bookwarm.Book).all()
+                for book in books:
+                    if book.isbn == int(isbn):
+                        if not edition == 'None':
+                            book.edition = int(edition)
+                        if not publisher == 'None':
+                            book.publisher = publisher
+                        session.commit()
+                self._load_all_available_books()
+                return (True, '')
+            except Exception as book_upd_err:
+                session.rollback()
+                return (False, book_upd_err)
 
     def add_new_collection(self, user, collection_name):
         new_collection = bookwarm.BookCollection(user=user,
