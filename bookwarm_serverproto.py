@@ -21,6 +21,7 @@ class ServerProtocol(asyncio.Protocol):
                                                 e=self._edit_book,
                                                 d=self._delete_book,
                                                 f=self._find_book,
+                                                r=self._retrieve_book_details,
                                                 b=self._back),
                               collections_menu = dict(a=self._add_collection,
                                                       v=self._view_collection,
@@ -96,20 +97,27 @@ class ServerProtocol(asyncio.Protocol):
     def _view_book(self, isbn):
         found = self._bookwarm_server.find_book_by_isbn(isbn)
         if not found:
-            self._send_formatted_reply(status='RE', command='main_menu',
+            self._send_formatted_reply(status='RE', command='books_menu',
                                        reply='ISBN not found.')
         else:
             reply = '{0.isbn} {0.title}\n'.format(found)
-            self._send_formatted_reply(status='RE', command='main_menu',
+            self._send_formatted_reply(status='RE', command='books_menu',
                                        reply=reply)
 
-    def _edit_book(self, *args):
-        raise NotImplementedError()
+    def _edit_book(self, isbn_updated_data):
+        isbn, new_edition, new_publisher = isbn_updated_data.split()
+        update_success, reply = self._bookwarm_server.update_book(isbn, new_edition, new_publisher)
+        if not update_success:
+            self._send_formatted_reply(status='RE', command='books_menu',
+                                       reply='Server Error: {}'.format(reply))
+        else:
+            self._send_formatted_reply(status='RE', command='books_menu',
+                                       reply='Book updated.')
 
     def _delete_book(self, isbn):
         del_success, reply = self._bookwarm_server.delete_book(isbn)
         if not del_success:
-            self._send_formatted_reply(status='RE', command='main_menu',
+            self._send_formatted_reply(status='RE', command='books_menu',
                                        reply='Server Error: {}'.format(reply))
         else:
             self._send_formatted_reply(status='RE', command='books_menu',
@@ -118,7 +126,15 @@ class ServerProtocol(asyncio.Protocol):
     def _find_book(self, isbn_menu):
         isbn_to_find, client_func_to_invoke = isbn_menu.split()
         found = self._bookwarm_server.find_book_by_isbn(isbn_to_find)
-        reply = 'DUPLICATE {}'.format(isbn_to_find) if found else 'OK {}'.format(isbn_to_find)
+        reply = str(found.isbn) if found else ''
+        if client_func_to_invoke == '_add_new_book':
+            reply = '' if found else isbn_to_find
+        self._send_formatted_reply(status='FUNC', command=client_func_to_invoke, reply=reply)
+
+    def _retrieve_book_details(self, isbn_func):
+        isbn, client_func_to_invoke = isbn_func.split()
+        book_details_str = self._bookwarm_server.retrieve_book_details(isbn)
+        reply = '{}:{}'.format(isbn, book_details_str)
         self._send_formatted_reply(status='FUNC', command=client_func_to_invoke, reply=reply)
 
     def _back(self, *args):
