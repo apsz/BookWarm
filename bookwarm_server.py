@@ -45,12 +45,36 @@ class BookWarmServer:
     def get_user_collections(self, user):
         with bookwarm.SQLSession(self._database_path) as session:
             return session.query(bookwarm.BookCollection).filter(
-                bookwarm.BookCollection.user == user)
+                bookwarm.BookCollection.user == user).all()
 
     def get_collection_by_name(self, collection_name):
         with bookwarm.SQLSession(self._database_path) as session:
             return session.query(bookwarm.BookCollection).filter(
-                bookwarm.BookCollection.collection_name == collection_name)
+                bookwarm.BookCollection.collection_name == collection_name).all()
+
+    def add_new_collection(self, user, collection_name):
+        with bookwarm.SQLSession(self._database_path) as session:
+            try:
+                new_collection = bookwarm.BookCollection(user, collection_name, [])
+                session.add(new_collection)
+                session.commit()
+                return (True, '')
+            except Exception as add_collection_err:
+                session.rollback()
+                return (False, add_collection_err)
+
+    def delete_collection(self, collection_name):
+        with bookwarm.SQLSession(self._database_path) as session:
+            try:
+                collections = session.query(bookwarm.BookCollection).all()
+                for collection in collections:
+                    if collection.collection_name == collection_name:
+                        session.delete(collection)
+                        session.commit()
+                return (True, '')
+            except Exception as del_collection_err:
+                session.rollback()
+                return (False, del_collection_err)
 
     def find_book_by_isbn(self, isbn):
         with bookwarm.SQLSession(self._database_path) as session:
@@ -117,11 +141,6 @@ class BookWarmServer:
             except Exception as book_upd_err:
                 session.rollback()
                 return (False, book_upd_err)
-
-    def add_new_collection(self, user, collection_name):
-        new_collection = bookwarm.BookCollection(user=user,
-                                                 collection_name=collection_name,
-                                                 book_collection=[])
 
     def _setup_database(self):
         try:

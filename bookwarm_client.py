@@ -83,23 +83,53 @@ class BookWarmClient(asyncio.Protocol):
             self._send_formatted(command=user_choice, client_data='',
                                  options_menu='collections_menu')
 
-    def _collections_empty_options(self):
-        user_choice = CmdUtils.get_str('(C)reate  (B)ack', input_type='option', valid='cb')
-        if user_choice == 'c':
-            collection_name = CmdUtils.get_str('Collection name', input_type='string', min_len=1)
+    def _send_collection_option_or_cancel(self, user_choice, options_menu='collections_menu',
+                                          fallback_menu='_collections_menu_options'):
+        try:
+            collection_name = self._get_collection_name()
+        except MenuCancel:
+            print('Canceled.')
+            self.__getattribute__(fallback_menu)()
+            return
+        else:
             self._send_formatted(command=user_choice, client_data=collection_name,
-                                 options_menu='collections_menu')
+                                 options_menu=options_menu)
+
+    def _get_collection_name(self):
+        try:
+            collection_name = self.__get_str_or_cancel(msg='Collection name (or "c" or cancel)',
+                                                       input_type='string', min_len=1)
+        except MenuCancel:
+            raise
+        else:
+            return collection_name
+
+    def _collections_empty_options(self):
+        user_choice = CmdUtils.get_str('(A)dd  (B)ack', input_type='option', valid='ab')
+        if user_choice == 'a':
+            self._send_collection_option_or_cancel(user_choice=user_choice,
+                                                   fallback_menu='_collections_empty_options')
         else:
             self._main_menu_options()
 
     def _collections_menu_options(self):
         user_choice = CmdUtils.get_str('(A)dd Collection  (V)iew  (E)dit  (D)elete  (B)ack',
                                        input_type='option', valid='vedb')
-        self._send_formatted(command=user_choice, client_data='', options_menu='collections_menu')
+        if user_choice == 'a':
+            self._send_collection_option_or_cancel(user_choice=user_choice)
+        elif user_choice == 'e':
+            self._send_collection_option_or_cancel(user_choice=user_choice)
+        elif user_choice == 'd':
+            self._send_collection_option_or_cancel(user_choice=user_choice)
+        elif user_choice == 'v':
+            self._send_collection_option_or_cancel(user_choice=user_choice)
+        else:
+            self._main_menu_options()
 
     def _get_isbn(self):
         try:
-            isbn = CmdUtils.get_str('ISBN (10 or 13 plain digits)', input_type='isbn', min_len=10, max_len=13)
+            isbn = CmdUtils.get_str('ISBN (10 or 13 plain digits)',
+                                    input_type='isbn', min_len=10, max_len=13)
             if (len(isbn) == 10 or len(isbn) == 13) and isbn.isdigit():
                 return isbn
             raise ValueError()
@@ -251,6 +281,7 @@ class BookWarmClient(asyncio.Protocol):
         if user_int == 'c':
             raise MenuCancel()
         return user_int
+
 
 def get_user():
     return getpass.getuser()

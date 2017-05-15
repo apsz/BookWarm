@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-
+# TODO: edit collection -> add/del/view/edit userbooks
+# TODO: import/export collections
 
 import os
 import asyncio
@@ -69,20 +70,42 @@ class ServerProtocol(asyncio.Protocol):
         self._transport.close()
 
     # collection handling
-    def _add_collection(self, client_data, next_menu='collections_menu', status='RE',
-                        reply='Collection created.'):
-        self._bookwarm_server.add_new_collection(user=self._user,
-                                                 collection_name=client_data)
-        self._send_formatted_reply(status=status, command=next_menu, reply=reply)
+    def _add_collection(self, client_data, next_menu='collections_menu',
+                        status='RE', reply='Collection created.'):
+        add_success, reply = self._bookwarm_server.add_new_collection(user=self._user,
+                                                          collection_name=client_data)
+        if not add_success:
+            self._send_formatted_reply(status='RE', command='main_menu',
+                                       reply='Server Error: {}'.format(reply))
+        else:
+            self._load_user_collections()
+            self._send_formatted_reply(status='RE', command=next_menu,
+                                       reply='Collection added.')
 
-    def _view_collection(self, *args):
-        raise NotImplementedError()
+    def _view_collection(self, collection_name):
+        found = self._bookwarm_server.get_collection_by_name(collection_name)
+        if not found:
+            self._send_formatted_reply(status='RE', command='collections_menu',
+                                       reply='Collection {} not found.'.format(collection_name))
+        else:
+            reply = ''
+            for book in found[0]:
+                reply += '{0.isbn} {0.title}\n'.format(book)
+            self._send_formatted_reply(status='RE', command='collections_menu',
+                                       reply=reply if reply.strip() else 'Empty.')
 
     def _edit_collection(self, *args):
         raise NotImplementedError()
 
-    def _delete_collection(self, *args):
-        raise NotImplementedError()
+    def _delete_collection(self, collection_name):
+        del_success, reply = self._bookwarm_server.delete_collection(collection_name)
+        if not del_success:
+            self._send_formatted_reply(status='RE', command='collections_menu',
+                                       reply='Server Error: {}'.format(reply))
+        else:
+            self._load_user_collections()
+            self._send_formatted_reply(status='RE', command='collections_menu',
+                                       reply='Collection removed.')
 
     # book handling
     def _add_book(self, book_data):
